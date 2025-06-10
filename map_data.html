@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google My Maps データ生成ツール</title>
+    <style>
+        /* --- Reset & Basic Styles --- */
+        :root {
+            --primary-color: #007bff;
+            --secondary-color: #6c757d;
+            --light-color: #f8f9fa;
+            --dark-color: #343a40;
+            --success-color: #28a745;
+            --border-color: #dee2e6;
+            --white-color: #ffffff;
+            --danger-color: #dc3545;
+        }
+
+        body {
+            font-family: 'Hiragino Kaku Gothic ProN', 'メイリオ', Meiryo, sans-serif;
+            background-color: var(--light-color);
+            margin: 0;
+            padding: 0 0 8rem; /* フローティングメニュー分の余白 */
+            color: var(--dark-color);
+        }
+
+        /* --- Layout --- */
+        .container {
+            max-width: 900px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background-color: var(--white-color);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--dark-color);
+            margin-bottom: 2rem;
+            border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 0.5rem;
+        }
+
+        /* --- Info Box --- */
+        .info-box {
+            background-color: #eef7ff;
+            border-left: 5px solid var(--primary-color);
+            padding: 1rem 1.5rem;
+            margin-bottom: 2rem;
+            border-radius: 4px;
+        }
+        .info-box h3 {
+            margin-top: 0;
+            color: var(--primary-color);
+        }
+        .info-box ul, .info-box ol {
+            padding-left: 20px;
+            margin-bottom: 0;
+        }
+        .info-box li {
+            margin-bottom: 0.5rem;
+        }
+
+        /* --- Input List --- */
+        #address-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .address-row {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            transition: background-color 0.3s;
+        }
+        .address-row:focus-within {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+        }
+
+        .row-number {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--secondary-color);
+            min-width: 25px;
+            text-align: right;
+        }
+        
+        .checkbox-container {
+            display: none; /* Initially hidden */
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .row-checkbox {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+        .check-order-badge {
+            background-color: var(--primary-color);
+            color: var(--white-color);
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+        }
+        .input-group label {
+            font-size: 0.8rem;
+            color: var(--secondary-color);
+            margin-bottom: 0.25rem;
+        }
+        
+        input[type="text"], input[type="time"] {
+            padding: 0.6rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+        .address-input {
+            flex-grow: 1;
+        }
+        .time-window {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        #add-row-btn {
+            display: block;
+            width: 100%;
+            padding: 0.8rem;
+            font-size: 1rem;
+            font-weight: bold;
+            color: var(--primary-color);
+            background-color: var(--white-color);
+            border: 2px dashed var(--primary-color);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        #add-row-btn:hover {
+            background-color: #eef7ff;
+            color: #0056b3;
+        }
+
+        /* --- Floating Action Button (FAB) Menu --- */
+        #fab-menu {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            align-items: flex-end;
+            z-index: 1000;
+        }
+
+        .fab-btn {
+            padding: 1rem 1.5rem;
+            font-size: 1rem;
+            font-weight: bold;
+            color: var(--white-color);
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .fab-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+        }
+        #execute-btn { background-color: var(--primary-color); }
+        #confirm-route-btn { background-color: var(--success-color); display: none; }
+        .fab-btn svg { width: 20px; height: 20px; fill: currentColor; }
+
+        /* --- Routes Container --- */
+        #routes-container { margin-top: 3rem; }
+        .route-card {
+            background-color: var(--white-color);
+            border: 1px solid var(--success-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        .route-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 1rem;
+            margin-bottom: 1rem;
+        }
+        .route-card-header h3 { margin: 0; color: var(--success-color); }
+        .departure-group { display: flex; align-items: center; gap: 0.5rem; }
+        .copy-route-btn {
+            background-color: var(--secondary-color);
+            color: var(--white-color);
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background-color 0.3s;
+        }
+        .copy-route-btn:hover { background-color: var(--dark-color); }
+        .route-card ol { padding-left: 20px; margin: 0; }
+        .route-card li { padding: 0.5rem 0; font-size: 1rem; }
+        .route-time-window { font-size: 0.9rem; color: var(--secondary-color); margin-left: 0.5rem; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* --- Responsive Design --- */
+        @media (max-width: 768px) {
+            body { padding-bottom: 10rem; }
+            .container { margin: 1rem; padding: 1rem; }
+            .address-row { flex-direction: column; align-items: stretch; }
+            .row-number { text-align: left; margin-bottom: 0.5rem; }
+            #fab-menu { right: 1rem; bottom: 1rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <main class="container">
+        <h1>Google My Maps マップデータ生成ツール</h1>
+
+        <div class="info-box">
+            <h3>サイトの使い方</h3>
+            <ol>
+                <li>訪問先の住所と時間窓を入力します。（5件以上は「訪問先を追加」で増やせます）</li>
+                <li>右下の「CSVデータ生成」ボタンを押すと、入力内容がCSVファイルとしてダウンロードされます。</li>
+                <li>CSV生成後、各訪問先の横にチェックボックスが表示されます。</li>
+                <li>ルートに加えたい訪問先を、訪問したい順番にクリックしてチェックします。</li>
+                <li>右下の「ルート確定」ボタンを押すと、チェック順で画面下にルートとして表示されます。</li>
+            </ol>
+            <h3 style="margin-top: 1.5rem;">ご利用の前に</h3>
+            <ul>
+                <li><strong>住所の入力:</strong> 認識精度向上のため、都道府県から正式名称で入力してください。<br>（例: <span style="color:var(--danger-color)">名古屋市法華1-153</span> → <span style="color:var(--success-color)">愛知県名古屋市法華1丁目153</span>）</li>
+                <li><strong>時間指定:</strong> 「10時まで」のような指定の場合は、開始時間をおおよそで入力してください。</li>
+            </ul>
+        </div>
+
+        <div id="address-list"></div>
+        <button id="add-row-btn">+ 訪問先を追加</button>
+        <div id="routes-container"></div>
+    </main>
+
+    <div id="fab-menu">
+        <button id="confirm-route-btn" class="fab-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+            ルート確定
+        </button>
+        <button id="execute-btn" class="fab-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.4 16.6L4.8 12l-1.4 1.4L9.4 19.4l12-12-1.4-1.4z" opacity=".3"/><path d="M19.77 7.23l-1.41-1.41L14 10.17V3h-2v7.17l-4.36-4.36-1.41 1.41L12 16l7.77-8.77z"/></svg>
+            CSVデータ生成
+        </button>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const addressList = document.getElementById('address-list');
+        const addRowBtn = document.getElementById('add-row-btn');
+        const executeBtn = document.getElementById('execute-btn');
+        const confirmRouteBtn = document.getElementById('confirm-route-btn');
+        const routesContainer = document.getElementById('routes-container');
+
+        let rowCount = 0;
+        let checkedOrder = [];
+        let routeCounter = 1;
+
+        const createRow = (number) => {
+            rowCount = number;
+            const rowId = `row-${number}`;
+            const row = document.createElement('div');
+            row.className = 'address-row';
+            row.id = rowId;
+
+            row.innerHTML = `
+                <div class="checkbox-container">
+                    <input type="checkbox" class="row-checkbox" data-row-id="${rowId}">
+                    <span class="check-order-badge" style="display: none;"></span>
+                </div>
+                <span class="row-number">${number}.</span>
+                <div class="input-group address-input">
+                    <label for="address-${number}">住所</label>
+                    <input type="text" id="address-${number}" class="address" placeholder="例: 東京都千代田区千代田1-1">
+                </div>
+                <div class="input-group time-window">
+                    <div>
+                        <label for="start-time-${number}">時間窓 (開始)</label>
+                        <input type="time" id="start-time-${number}" class="start-time">
+                    </div>
+                    <div>
+                        <label for="end-time-${number}">時間窓 (終了)</label>
+                        <input type="time" id="end-time-${number}" class="end-time">
+                    </div>
+                </div>
+            `;
+            addressList.appendChild(row);
+        };
+
+        const initializeRows = () => {
+            for (let i = 1; i <= 5; i++) createRow(i);
+        };
+
+        const generateCSV = () => {
+            const rows = document.querySelectorAll('.address-row');
+            const csvHeader = "番号,住所,ラベル\n";
+            const depotRow = '0,愛知県北名古屋市沖村岡308,"デポ (出発地)"\n';
+            let csvDataRows = [depotRow];
+
+            rows.forEach(row => {
+                const number = row.querySelector('.row-number').textContent.replace('.', '');
+                const address = row.querySelector('.address').value.trim();
+                const startTime = row.querySelector('.start-time').value;
+                const endTime = row.querySelector('.end-time').value;
+
+                if (address) {
+                    const label = `"${number} (${startTime || 'N/A'}-${endTime || 'N/A'})"`;
+                    const safeAddress = address.includes(',') ? `"${address}"` : address;
+                    csvDataRows.push([number, safeAddress, label].join(',') + '\n');
+                }
+            });
+
+            const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+            const blob = new Blob([bom, csvHeader + csvDataRows.join('')], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            
+            const today = new Date();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            link.setAttribute('download', `map_data_${month}${day}.csv`);
+            link.setAttribute('href', url);
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            document.querySelectorAll('.checkbox-container').forEach(c => c.style.display = 'flex');
+            confirmRouteBtn.style.display = 'flex';
+        };
+        
+        const updateCheckOrderDisplay = () => {
+            document.querySelectorAll('.address-row').forEach(row => {
+                const badge = row.querySelector('.check-order-badge');
+                const index = checkedOrder.indexOf(row.id);
+                if (index > -1) {
+                    badge.textContent = index + 1;
+                    badge.style.display = 'flex';
+                } else {
+                    badge.style.display = 'none';
+                }
+            });
+        };
+
+        const handleCheckboxClick = (e) => {
+            if (e.target.classList.contains('row-checkbox')) {
+                const rowId = e.target.dataset.rowId;
+                if (e.target.checked) {
+                    if (!checkedOrder.includes(rowId)) checkedOrder.push(rowId);
+                } else {
+                    checkedOrder = checkedOrder.filter(id => id !== rowId);
+                }
+                updateCheckOrderDisplay();
+            }
+        };
+        
+        const confirmRoute = () => {
+            if (checkedOrder.length === 0) {
+                alert('ルートに含める訪問先をチェックしてください。');
+                return;
+            }
+
+            const routeCard = document.createElement('div');
+            routeCard.className = 'route-card';
+            const routeId = `route-${routeCounter}`;
+            routeCard.id = routeId;
+
+            const orderedList = document.createElement('ol');
+            let copyTextContent = [`ルート ${routeCounter}`];
+
+            checkedOrder.forEach(rowId => {
+                const row = document.getElementById(rowId);
+                if (row) {
+                    const address = row.querySelector('.address').value;
+                    const startTime = row.querySelector('.start-time').value;
+                    const endTime = row.querySelector('.end-time').value;
+                    
+                    const listItem = document.createElement('li');
+                    const timeText = (startTime && endTime) ? `(${startTime} - ${endTime})` : '';
+                    listItem.innerHTML = `${address} <span class="route-time-window">${timeText}</span>`;
+                    orderedList.appendChild(listItem);
+                    
+                    copyTextContent.push(`${orderedList.children.length}. ${address} ${timeText}`);
+                    row.remove();
+                }
+            });
+
+            routeCard.innerHTML = `
+                <div class="route-card-header">
+                    <h3>ルート ${routeCounter}</h3>
+                    <div class="departure-group">
+                        <label for="departure-${routeId}">出発時間:</label>
+                        <input type="time" id="departure-${routeId}" class="departure-time">
+                    </div>
+                    <button class="copy-route-btn" data-route-id="${routeId}">ルートをコピー</button>
+                </div>
+            `;
+            routeCard.appendChild(orderedList);
+            routesContainer.appendChild(routeCard);
+
+            routeCounter++;
+            checkedOrder = [];
+            updateCheckOrderDisplay();
+            
+            if (document.querySelectorAll('.address-row').length === 0) {
+                confirmRouteBtn.style.display = 'none';
+            }
+        };
+
+        const handleCopyClick = (e) => {
+            if (!e.target.classList.contains('copy-route-btn')) return;
+
+            const button = e.target;
+            const routeId = button.dataset.routeId;
+            const routeCard = document.getElementById(routeId);
+            
+            const title = routeCard.querySelector('h3').textContent;
+            const departureTime = routeCard.querySelector('.departure-time').value;
+            const departureText = departureTime ? `出発時間: ${departureTime}` : "出発時間: 未設定";
+            
+            const listItems = Array.from(routeCard.querySelectorAll('ol li'));
+            const listText = listItems.map((li, index) => {
+                const address = li.firstChild.textContent.trim();
+                const time = li.querySelector('.route-time-window')?.textContent || '';
+                return `${index + 1}. ${address} ${time}`;
+            }).join('\n');
+
+            const fullText = `${title}\n${departureText}\n\n${listText}`;
+            
+            navigator.clipboard.writeText(fullText).then(() => {
+                const originalText = button.textContent;
+                button.textContent = 'コピー完了！';
+                setTimeout(() => {
+                    button.textContent = originalText;
+                }, 2000);
+            }).catch(err => {
+                console.error('コピーに失敗しました', err);
+                alert('コピーに失敗しました。');
+            });
+        };
+
+        addRowBtn.addEventListener('click', () => createRow(rowCount + 1));
+        executeBtn.addEventListener('click', generateCSV);
+        confirmRouteBtn.addEventListener('click', confirmRoute);
+        addressList.addEventListener('click', handleCheckboxClick);
+        routesContainer.addEventListener('click', handleCopyClick);
+        
+        initializeRows();
+    });
+    </script>
+</body>
+</html>
